@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'none'; img-src 'self'; object-src 'none'">
+  <title>React · помощник</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="node_modules/@highlightjs/cdn-assets/styles/github-dark.min.css">
+  <script defer src="audio.cjs"></script>
+  <script defer src="node_modules/marked/lib/marked.umd.js"></script>
+  <script defer src="node_modules/dompurify/dist/purify.min.js"></script>
+  <script defer src="node_modules/@highlightjs/cdn-assets/highlight.min.js"></script>
+  <script defer src="answer-markdown.js"></script>
+  <script defer src="renderer.js"></script>
+</head>
+<body>
+  <header><button id="settingsToggle" aria-controls="settings" aria-expanded="true">Скрыть настройки</button><label><input type="checkbox" id="pin"> Поверх окон</label></header>
+  <details id="settings" open><summary>Настройки подключения</summary>
+    <p class="notice" id="providerNotice">Локальное окно · облачный AI. По запросу аудио и текст отправляются выбранному сервису. Используйте на тренировках или с согласия участников.</p>
+    <div class="settings-grid">
+      <label>Сервис<select id="provider"><option value="groq">Groq</option><option value="gemini">Google Gemini</option><option value="openai">OpenAI</option></select></label>
+      <label><span id="keyLabel">Groq API-ключ</span><input id="key" type="password" placeholder="Ключ хранится только в памяти" autocomplete="off"></label>
+      <label id="groqModelField">Модель ответов Groq<input id="groqModel" value="openai/gpt-oss-120b"></label>
+      <label id="groqTranscriptionModelField">Распознавание Groq<input id="groqTranscriptionModel" value="whisper-large-v3-turbo"></label>
+      <label id="geminiModelField" hidden>Модель Gemini<input id="geminiModel" value="gemini-3.8-flash"></label>
+      <label id="transcriptionModelField" hidden>Модель распознавания<input id="transcriptionModel" value="gpt-transcribe"></label>
+      <label id="answerModelField" hidden>Модель ответов<input id="answerModel" value="gpt-4.1-mini"></label>
+    </div>
+    <p class="notice" id="planNotice">Нужен ключ из console.groq.com/keys. Free Plan работает в пределах квоты; при исчерпании запрос отклоняется. Аудио и текст обрабатываются Groq.</p>
+    <details><summary>Прокси</summary><div class="settings-grid">
+      <label>Адрес прокси<input id="proxy" placeholder="http://127.0.0.1:9697" value="http://127.0.0.1:9697"></label>
+      <label>Логин (если нужен)<input id="proxyUser" autocomplete="off"></label>
+      <label>Пароль (если нужен)<input id="proxyPassword" type="password" autocomplete="off" placeholder="Только в памяти"></label>
+    </div><p class="notice">Пустой адрес — системные настройки. SOCKS5 поддерживается без авторизации. Прокси применяется только к запросам помощника.</p></details>
+    <button id="save">Применить</button><button id="checkConnection">Проверить подключение</button><span id="keyStatus"></span>
+    <p class="notice">Захватывается весь системный звук, без микрофона. Последние 60 секунд хранятся в оперативной памяти. Аудиозаписи на диск не сохраняются.</p>
+  </details>
+  <section class="toolbar">
+    <button id="listen">Начать захват звука</button>
+    <label>Фрагмент <select id="seconds"><option value="20">20 секунд</option><option value="40">40 секунд</option><option value="60" selected>60 секунд</option></select></label>
+    <meter id="level" min="0" max="1" value="0" aria-label="Уровень звука"></meter>
+    <span id="captureStatus">Захват выключен</span>
+  </section>
+  <div class="actions"><button class="primary" id="askAudio">Подсказка по звуку <kbd>Ctrl+Alt+Space</kbd></button><button id="cancel" disabled>Отменить</button><button id="clear">Очистить</button></div>
+  <p id="status" role="status" aria-live="polite">Введите ключ. Затем включите захват или напишите вопрос.</p>
+  <main><section class="answer-panel"><span class="eyebrow">КОРОТКИЙ ОТВЕТ</span><div id="answer" aria-live="polite">Здесь появятся суть, аргументы и пример.</div></section>
+  <section class="manual-question"><label for="question">Вопрос вручную · Enter — отправить, Shift+Enter — новая строка</label><textarea id="question" rows="2" placeholder="Например: чем useLayoutEffect отличается от useEffect?"></textarea><button id="askText">Ответить на текст</button></section>
+  <details open><summary>Последний вопрос / расшифровка</summary><div id="transcript">Пока пусто.</div></details></main>
+</body>
+</html>
