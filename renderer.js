@@ -11,7 +11,7 @@ const showSettings = visible => {
   const wasVisible = !$('settings').hidden;
   $('settings').hidden = !visible;
   if (visible) $('settings').open = true;
-  $('settingsToggle').textContent = visible ? 'Скрыть настройки' : 'Настройки';
+  $('settingsToggle').textContent = visible ? 'Закрыть' : 'Настройки';
   $('settingsToggle').setAttribute('aria-expanded', String(visible));
   if (!visible && wasVisible) {
     $('settingsToggle').focus({ preventScroll: true });
@@ -49,8 +49,9 @@ async function stopCapture() {
   stream = null;
   if (audioContext && audioContext.state !== 'closed') await audioContext.close();
   audioContext = null; processor = null; source = null; silence = null; ring = null;
-  $('listen').textContent = 'Начать захват звука';
-  $('captureStatus').textContent = 'Захват выключен'; $('level').value = 0;
+  $('listen').textContent = 'Слушать';
+  $('listen').classList.remove('listening');
+  $('captureStatus').textContent = 'Звук выключен'; $('level').value = 0;
 }
 
 $('listen').onclick = async () => {
@@ -74,12 +75,13 @@ $('listen').onclick = async () => {
       if (performance.now() - lastMeter > 150) {
         let sum = 0; for (const value of samples) sum += value * value;
         $('level').value = Math.min(1, Math.sqrt(sum / samples.length) * 8);
-        $('captureStatus').textContent = `Слушаю · ${Math.floor(ring.length / ring.sampleRate)} с в памяти`;
+        $('captureStatus').textContent = `Слушаю · ${Math.floor(ring.length / ring.sampleRate)} с`;
         lastMeter = performance.now();
       }
     };
     stream.getAudioTracks()[0].onended = () => { stopCapture(); status('Источник звука отключён. Включите захват снова.', true); };
-    $('listen').textContent = 'Остановить захват';
+    $('listen').textContent = 'Стоп';
+    $('listen').classList.add('listening');
     status('Захват включён. После вопроса нажмите Ctrl+Alt+Space.');
   } catch (error) { await stopCapture(); status(error.message, true); }
   finally { starting = false; $('listen').disabled = false; }
@@ -111,7 +113,7 @@ async function ask(fromAudio, clearInput = false) {
     showSettings(false);
     $('transcript').textContent = result.transcript;
     history.push(result.transcript); history = history.slice(-4);
-    status('Готово. Захват звука продолжает работать, если включён.');
+    status('Готово');
   } catch (error) { $('answer').textContent = 'Ответ не получен.'; status(error.message, true); }
   finally { setBusy(false); }
 }
@@ -159,7 +161,7 @@ $('save').onclick = async () => {
       status('Проверяю ключ…');
       const check = await window.assistant.checkConnection();
       showSettings(Boolean(check.error));
-      status(check.error || 'Ключ принят. Настройки скрыты — можно задавать вопрос.', Boolean(check.error));
+      status(check.error || 'Ключ принят. Можно задавать вопрос.', Boolean(check.error));
     } else {
       showSettings(true);
       status('Введите API-ключ.', true);
@@ -178,5 +180,9 @@ window.assistant.onShortcutStatus(registered => { if (!registered) status('Го�
 window.assistant.settings().then(result => {
   for (const name of ['provider', 'groqModel', 'groqTranscriptionModel', 'transcriptionModel', 'answerModel', 'geminiModel', 'proxy', 'proxyUser']) $(name).value = result[name];
   savedKeys = result.keyStatus; updateProvider();
+  if (result.hasKey) {
+    showSettings(false);
+    status('Ключ загружен. Можно задавать вопрос.');
+  }
   $('providerNotice').textContent = `Локальное окно · ${providerNames[result.provider]}. По запросу аудио и текст отправляются этому сервису. Используйте на тренировках или с согласия участников.`;
 }).catch(error => status(error.message, true));

@@ -15,7 +15,7 @@
   <script defer src="renderer.js"></script>
 </head>
 <body>
-  <header><button id="settingsToggle" aria-controls="settings" aria-expanded="true">Скрыть настройки</button><label><input type="checkbox" id="pin"> Поверх окон</label></header>
+  <header><span class="brand">React <span class="brand-sub">помощник</span></span><div class="header-actions"><label class="pin-control" title="Поверх других окон"><input type="checkbox" id="pin"> Закрепить</label><button id="settingsToggle" aria-controls="settings" aria-expanded="true" title="Настройки подключения">Закрыть</button></div></header>
   <details id="settings" open><summary>Настройки подключения</summary>
     <p class="notice" id="providerNotice">Локальное окно · облачный AI. По запросу аудио и текст отправляются выбранному сервису. Используйте на тренировках или с согласия участников.</p>
     <div class="settings-grid">
@@ -36,16 +36,20 @@
     <button id="save">Применить</button><button id="checkConnection">Проверить подключение</button><span id="keyStatus"></span>
     <p class="notice">Захватывается весь системный звук, без микрофона. Последние 60 секунд хранятся в оперативной памяти. Аудиозаписи на диск не сохраняются.</p>
   </details>
-  <section class="toolbar">
-    <button id="listen">Начать захват звука</button>
-    <label>Фрагмент <select id="seconds"><option value="20">20 секунд</option><option value="40">40 секунд</option><option value="60" selected>60 секунд</option></select></label>
+  <section class="toolbar" aria-label="Управление звуком">
+    <button id="listen" title="Включить или остановить захват системного звука">Слушать</button>
+    <span id="captureStatus">Звук выключен</span>
     <meter id="level" min="0" max="1" value="0" aria-label="Уровень звука"></meter>
-    <span id="captureStatus">Захват выключен</span>
+    <select id="seconds" aria-label="Длина аудиофрагмента"><option value="20">20 с</option><option value="40">40 с</option><option value="60" selected>60 с</option></select>
   </section>
-  <div class="actions"><button class="primary" id="askAudio">Подсказка по звуку <kbd>Ctrl+Alt+Space</kbd></button><button id="cancel" disabled>Отменить</button><button id="clear">Очистить</button></div>
-  <p id="status" role="status" aria-live="polite">Введите ключ. Затем включите захват или напишите вопрос.</p>
-  <main><section class="answer-panel"><span class="eyebrow">КОРОТКИЙ ОТВЕТ</span><div id="answer" aria-live="polite">Здесь появятся суть, аргументы и пример.</div></section>
-  <section class="manual-question"><label for="question">Вопрос вручную · Enter — отправить, Shift+Enter — новая строка</label><textarea id="question" rows="2" placeholder="Например: чем useLayoutEffect отличается от useEffect?"></textarea><button id="askText">Ответить на текст</button></section>
-  <details open><summary>Последний вопрос / расшифровка</summary><div id="transcript">Пока пусто.</div></details></main>
+  <main>
+    <details class="transcript-panel"><summary>Последний вопрос</summary><div id="transcript">Пока пусто.</div></details>
+    <section class="answer-panel"><div class="answer-heading"><span>Ответ</span><button id="clear" title="Очистить ответ, контекст и аудиобуфер">Очистить</button></div><div id="answer" aria-live="polite"><p class="empty-answer">Самое главное — здесь.</p><p class="empty-hint">Введите вопрос или включите звук,<br>чтобы получить краткий ответ.</p></div></section>
+  </main>
+  <footer>
+    <div class="status-row"><p id="status" role="status" aria-live="polite">Добавьте API-ключ в настройках.</p><button id="cancel" disabled>Отмена</button></div>
+    <section class="manual-question" aria-label="Вопрос вручную"><textarea id="question" rows="1" aria-label="Вопрос" placeholder="Спросить…" title="Enter — отправить, Shift+Enter — новая строка"></textarea><button id="askText" title="Отправить вопрос · Enter" aria-label="Отправить вопрос">↑</button><button id="askAudio" title="Ответить по звуку · Ctrl+Alt+Space" aria-label="Ответить по звуку">По звуку</button></section>
+    <div class="shortcut-hint">Enter — отправить <span>Ctrl + Alt + Space — по звуку</span></div>
+  </footer>
 </body>
 </html>

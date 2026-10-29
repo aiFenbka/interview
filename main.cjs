@@ -9,6 +9,29 @@ const pageUrl = pathToFileURL(path.join(__dirname, 'index.html')).href;
 let window;
 let tray;
 let quitting = false;
+let pinned = false;
+let pinTimer;
+
+function raisePinnedWindow() {
+  if (!pinned || !window || window.isDestroyed() || !window.isVisible() || window.isMinimized()) return;
+  window.setAlwaysOnTop(true, 'screen-saver');
+  window.moveTop();
+}
+
+function stopPinTimer() {
+  clearInterval(pinTimer);
+  pinTimer = undefined;
+}
+
+function refreshPin() {
+  stopPinTimer();
+  if (!pinned || !window || window.isDestroyed() || !window.isVisible()) return;
+  raisePinnedWindow();
+  // Other topmost windows (including sharing controls) can change the z-order.
+  // Reassert it without activating this window or taking keyboard focus.
+  pinTimer = setInterval(raisePinnedWindow, 800);
+  pinTimer.unref();
+}
 
 function showWindow() {
   if (!window || window.isDestroyed()) return;
@@ -18,22 +41,41 @@ function showWindow() {
 }
 
 function createTrayIcon() {
-  const pixels = Buffer.alloc(32 * 32 * 4);
-  for (let y = 3; y < 29; y++) {
-    for (let x = 3; x < 29; x++) {
-      const offset = (y * 32 + x) * 4;
-      const line = x >= 9 && x <= 22 && (y === 11 || y === 12 || y === 18 || y === 19);
-      // NativeImage bitmap pixels are BGRA on Windows.
-      pixels[offset] = line ? 33 : 193;
-      pixels[offset + 1] = line ? 21 : 219;
-      pixels[offset + 2] = line ? 16 : 126;
-      pixels[offset + 3] = 255;
+  const size = 32, scale = 4;
+  const pixels = Buffer.alloc(size * size * 4);
+  // Supersampling keeps the controller silhouette readable at tray sizes.
+  const silhouette = [[8,10],[12,8],[13,10],[19,10],[20,8],[24,10],
+    [27,22],[22,25],[20,22],[12,22],[10,25],[5,22]];
+  function inside(x, y) {
+    let hit = false;
+    for (let i = 0, j = silhouette.length - 1; i < silhouette.length; j = i++) {
+      const [a, b] = silhouette[i], [c, d] = silhouette[j];
+      if ((b > y) !== (d > y) && x < (c - a) * (y - b) / (d - b) + a) hit = !hit;
     }
+    return hit;
   }
-  return nativeImage.createFromBitmap(pixels, { width: 32, height: 32 });
+  for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) {
+    let coverage = 0, white = 0;
+    for (let sy = 0; sy < scale; sy++) for (let sx = 0; sx < scale; sx++) {
+      const px = x + (sx + .5) / scale, py = y + (sy + .5) / scale;
+      if ((px - 16) ** 2 + (py - 16) ** 2 > 15 ** 2) continue;
+      coverage++;
+      const eye = [12, 20].some(cx => ((px - cx) / 1.8) ** 2 + ((py - 17) / 2.2) ** 2 < 1);
+      if (inside(px, py) && !eye) white++;
+    }
+    if (!coverage) continue;
+    const mix = white / coverage, offset = (y * size + x) * 4;
+    // Native bitmap channels: blue, green, red, alpha.
+    pixels[offset] = Math.round(242 + 13 * mix);
+    pixels[offset + 1] = Math.round(101 + 154 * mix);
+    pixels[offset + 2] = Math.round(88 + 167 * mix);
+    pixels[offset + 3] = Math.round(255 * coverage / (scale * scale));
+  }
+  return nativeImage.createFromBitmap(pixels, { width: size, height: size });
 }
+
 let settings = { provider: 'groq', groqTranscriptionModel: 'whisper-large-v3-turbo', groqModel: 'openai/gpt-oss-120b', transcriptionModel: 'gpt-transcribe', answerModel: 'gpt-4.1-mini', geminiModel: 'gemini-3.8-flash', proxy: 'http://127.0.0.1:9697', proxyUser: '', proxyPassword: '' };
-const keys = { groq: process.env.GROQ_API_KEY || '', openai: process.env.OPENAI_API_KEY || '', gemini: process.env.GEMINI_API_KEY || '' };
+const keys = require('./local-keys.cjs').loadKeys(path.join(__dirname, 'local.env'));
 let apiSession;
 let networkReady;
 let activeRequest;
@@ -82,13 +124,13 @@ app.whenReady().then(async () => {
   window = new BrowserWindow({
     show: false,
     skipTaskbar: true,
-    width: 1080, height: 820, minWidth: 760, minHeight: 650,
-    backgroundColor: '#101521', title: 'React · помощник',
+    width: 460, height: 600, minWidth: 380, minHeight: 420,
+    backgroundColor: '#191919', title: 'React · помощник',
     webPreferences: { preload: path.join(__dirname, 'preload.cjs'), contextIsolation: true, nodeIntegration: false, sandbox: true, backgroundThrottling: false }
   });
   if (process.platform === 'win32') window.setContentProtection(true);
   tray = new Tray(createTrayIcon());
-  tray.setToolTip('React · помощник');
+  tray.setToolTip('Discord');
   tray.setContextMenu(Menu.buildFromTemplate([
     { label: 'Показать', click: showWindow },
     { label: 'Скрыть в трей', click: () => window.hide() },
@@ -96,6 +138,9 @@ app.whenReady().then(async () => {
     { label: 'Выход', click: () => app.quit() }
   ]));
   tray.on('click', () => { if (window.isVisible() && !window.isMinimized()) window.hide(); else showWindow(); });
+  window.on('show', refreshPin);
+  window.on('hide', stopPinTimer);
+  window.on('closed', stopPinTimer);
   window.on('minimize', event => { event.preventDefault(); window.hide(); });
   window.on('close', event => {
     if (!quitting) { event.preventDefault(); window.hide(); }
@@ -134,7 +179,12 @@ app.whenReady().then(async () => {
     const { proxyPassword, ...publicSettings } = settings;
     return { ...publicSettings, hasKey: Boolean(keys[settings.provider]), keyStatus: { groq: Boolean(keys.groq), gemini: Boolean(keys.gemini), openai: Boolean(keys.openai) } };
   });
-  ipcMain.handle('pin', (event, value) => { trusted(event); window.setAlwaysOnTop(Boolean(value)); });
+  ipcMain.handle('pin', (event, value) => {
+    trusted(event);
+    pinned = Boolean(value);
+    window.setAlwaysOnTop(pinned, 'screen-saver');
+    refreshPin();
+  });
   ipcMain.handle('cancel', event => { trusted(event); activeRequest?.abort(); });
   ipcMain.handle('check-connection', async event => {
     trusted(event);
